@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <cstddef>
 #include <string_view>
 
@@ -22,16 +23,23 @@ enum class ParseError
     OK = 0,
     ExpectValue,
     InvalidValue,
-    RootNotSingular
+    RootNotSingular,
+    NumberTooBig
 };
 
 class Value
 {
 public:
-    Value() : type_(Type::Null) {}
+    Value() : type_(Type::Null), number_(0.0) {}
 
     ParseError parse(std::string_view json);
     Type type() const { return type_; }
+
+    double number() const
+    {
+        assert(type_ == Type::Number);
+        return number_;
+    }
 
     bool is_null() const { return type_ == Type::Null; }
     bool is_false() const { return type_ == Type::False; }
@@ -43,6 +51,7 @@ public:
 
 private:
     Type type_;
+    double number_;
 
     struct Context
     {
@@ -51,11 +60,14 @@ private:
     };
 
     static void skipWhitespace(Context& c);
-    static ParseError parseNull(Context& c, Value& v);
-    /* 练习：取消注释并实现以下函数声明 */
-    static ParseError parseTrue(Context& c, Value& v);
-    static ParseError parseFalse(Context& c, Value& v);
+
+    static ParseError parseLiteral(Context& c, Value& v, std::string_view literal, Type type);
+    // static ParseError parseNull(Context& c, Value& v);
+    // /* 练习：取消注释并实现以下函数声明 */
+    // static ParseError parseTrue(Context& c, Value& v);
+    // static ParseError parseFalse(Context& c, Value& v);
     static ParseError parseValue(Context& c, Value& v);
+    static ParseError parseNumber(Context& c, Value& v);
 };
 
 } // namespace lept

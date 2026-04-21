@@ -1,8 +1,19 @@
 #include "leptjson.hpp"
 #include <cassert>
+#include <cerrno>
+#include <cstdlib>
+#include <cmath>
 
 namespace lept
 {
+static bool isDigit(char ch)
+{
+    return ch >= '0' && ch <= '9';
+}
+static bool isDigit1to9(char ch)
+{
+    return ch >= '1' && ch <= '9';
+}
 
 void Value::skipWhitespace(Context& c)
 {
@@ -16,42 +27,69 @@ void Value::skipWhitespace(Context& c)
     }
 }
 
-/* null = "null" */
-ParseError Value::parseNull(Context& c, Value& v)
+ParseError Value::parseLiteral(Context& c, Value& v, std::string_view literal, Type type)
 {
-    assert(!c.json.empty() && c.json.front() == 'n');
-    c.json.remove_prefix(1); // skip 'n'
-    if (c.json.size() < 3 || c.json.substr(0, 3) != "ull")
+    if (c.json.size() < literal.size() || c.json.substr(0, literal.size()) != literal)
+    {
         return ParseError::InvalidValue;
-    c.json.remove_prefix(3);
-    v.type_ = Type::Null;
+    }
+    c.json.remove_prefix(literal.size());
+    v.type_ = type;
+    return ParseError::OK;
+}
+ParseError Value::parseNumber(Context& c, Value& v)
+{
+    const char* start = c.json.data();
+    char* end = nullptr;
+    auto p = c.json;
+    if (!p.empty() && p.front() == '-')
+        p.remove_prefix(1);
+    if (p.empty())
+        return ParseError::InvalidValue;
+
+    if (p.front() == '0')
+        p.remove_prefix(1);
+    else
+    {
+        if (!isDigit1to9(p.front()))
+            return ParseError::InvalidValue;
+        p.remove_prefix(1);
+        while (!p.empty() && isDigit(p.front()))
+            p.remove_prefix(1);
+    }
+
+    if (!p.empty() && p.front() == '.')
+    {
+        p.remove_prefix(1);
+        if (p.empty() || !isDigit(p.front()))
+            return ParseError::InvalidValue;
+        p.remove_prefix(1);
+        while (!p.empty() && isDigit(p.front()))
+            p.remove_prefix(1);
+    }
+
+    if (!p.empty() && (p.front() == 'e' || p.front() == 'E'))
+    {
+        p.remove_prefix(1);
+        if (!p.empty() && (p.front() == '+' || p.front() == '-'))
+            p.remove_prefix(1);
+        if (p.empty() || !isDigit(p.front()))
+            return ParseError::InvalidValue;
+        p.remove_prefix(1);
+        while (!p.empty() && isDigit(p.front()))
+            p.remove_prefix(1);
+    }
+    errno = 0;
+    v.number_ = std::strtod(start, &end);
+    if (errno == ERANGE && (v.number_ == HUGE_VAL || v.number_ == -HUGE_VAL))
+        return ParseError::NumberTooBig;
+    if (c.json.data() == end)
+        return ParseError::InvalidValue;
+    c.json.remove_prefix(end - c.json.data());
+    v.type_ = Type::Number;
     return ParseError::OK;
 }
 
-/* 练习：参考 parseNull() 实现 parseTrue() */
-/* true = "true" */
-ParseError Value::parseTrue(Context& c, Value& v)
-{
-    assert(!c.json.empty() && c.json.front() == 't');
-    c.json.remove_prefix(1); // skip 't'
-    if (c.json.size() < 3 || c.json.substr(0, 3) != "rue")
-        return ParseError::InvalidValue;
-    c.json.remove_prefix(3);
-    v.type_ = Type::True;
-    return ParseError::OK;
-}
-/* 练习：参考 parseNull() 实现 parseFalse() */
-/* false = "false" */
-ParseError Value::parseFalse(Context& c, Value& v)
-{
-    assert(!c.json.empty() && c.json.front() == 'f');
-    c.json.remove_prefix(1); // skip 'f'
-    if (c.json.size() < 4 || c.json.substr(0, 4) != "alse")
-        return ParseError::InvalidValue;
-    c.json.remove_prefix(4);
-    v.type_ = Type::False;
-    return ParseError::OK;
-}
 /* value = null / false / true */
 /* 练习：下面代码没处理 false / true，将会是练习之一 */
 ParseError Value::parseValue(Context& c, Value& v)
@@ -60,16 +98,15 @@ ParseError Value::parseValue(Context& c, Value& v)
     switch (ch)
     {
     case 'n':
-        return parseNull(c, v);
-    /* 练习：加入 't' 和 'f' 的分支 */
+        return parseLiteral(c, v, "null", Type::Null);
     case 't':
-        return parseTrue(c, v);
+        return parseLiteral(c, v, "true", Type::True);
     case 'f':
-        return parseFalse(c, v);
+        return parseLiteral(c, v, "false", Type::False);
     case '\0':
         return ParseError::ExpectValue;
     default:
-        return ParseError::InvalidValue;
+        return parseNumber(c, v);
     }
 }
 
