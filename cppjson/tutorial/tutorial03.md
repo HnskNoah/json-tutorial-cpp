@@ -15,7 +15,7 @@
 
 JSON 的字符串语法和 C 语言很相似，都是以双引号把字符括起来，如 `"Hello"`。但字符串采用了双引号作分隔，那么怎样可以在字符串中插入一个双引号？把 `a"b` 写成 `"a"b"` 肯定不行，都不知道那里是字符串的结束了。因此，我们需要引入转义字符（escape character），JSON 使用 `\`（反斜线）作为转义字符，那么 `"` 在字符串中就表示为 `\"`，`a"b` 的 JSON 字符串则写成 `"a\"b"`。JSON 共支持 9 种转义序列：
 
-~~~
+~~~cpp
 string = quotation-mark *char quotation-mark
 char = unescaped /
    escape (

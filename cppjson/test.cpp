@@ -120,6 +120,22 @@ static void test_parse_number()
     test_number(-1.7976931348623157e+308, "-1.7976931348623157e+308");
 }
 
+static void test_parse_string()
+{
+    test_string("", "");
+    test_string("Hello", "Hello");
+    test_string("Hello\\nWorld", "Hello\nWorld");
+    test_string("Hello\\\"World", "Hello\"World");
+    test_string("Hello\\\\World", "Hello\\World");
+    test_string("Hello\\/World", "Hello/World");
+    test_string("Hello\\bWorld", "Hello\bWorld");
+    test_string("Hello\\fWorld", "Hello\fWorld");
+    test_string("Hello\\rWorld", "Hello\rWorld");
+    test_string("Hello\\tWorld", "Hello\tWorld");
+    test_error(ParseError::InvalidStringEscape, "\"\\a\"");
+    test_error(ParseError::InvalidStringChar, "\"\x01\"");
+    test_error(ParseError::MissQuotationMark, "\"abc");
+}
 static void test_parse()
 {
     /* 练习：取消注释以下两行 */
