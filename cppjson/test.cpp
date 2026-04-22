@@ -1,6 +1,7 @@
 #include "leptjson.hpp"
 #include <cstdio>
 #include <source_location>
+#include <format>
 
 using namespace lept;
 
@@ -10,17 +11,22 @@ public:
     template <typename T, typename U>
     void expect_eq(T expect, U actual, std::source_location loc = std::source_location::current())
     {
-        int e = static_cast<int>(expect);
-        int a = static_cast<int>(actual);
         ++count_;
-        if (e == a)
+        if (expect == actual)
         {
             ++pass_;
         }
         else
         {
-            std::fprintf(stderr, "%s:%u: expect: %d actual: %d\n", loc.file_name(), loc.line(), e,
-                         a);
+            if constexpr (std::is_enum_v<T>)
+                std::fprintf(stderr, "%s:%u: expect: %d actual: %d\n", loc.file_name(), loc.line(),
+                             static_cast<int>(expect), static_cast<int>(actual));
+            else
+            {
+                auto msg = std::format("{}:{}: expect: {} actual: {}\n", loc.file_name(),
+                                       loc.line(), expect, actual);
+                std::fputs(msg.c_str(), stderr);
+            }
             ret_ = 1;
         }
     }
@@ -119,19 +125,25 @@ static void test_parse_number()
     test_number(1.7976931348623157e+308, "1.7976931348623157e+308"); /* Max double */
     test_number(-1.7976931348623157e+308, "-1.7976931348623157e+308");
 }
-
+auto test_string(std::string_view expected, std::string_view json) -> void
+{
+    Value v;
+    runner.expect_eq(ParseError::OK, v.parse(json));
+    runner.expect_eq(Type::String, v.type());
+    runner.expect_eq(expected, v.string());
+};
 static void test_parse_string()
 {
-    test_string("", "");
-    test_string("Hello", "Hello");
-    test_string("Hello\\nWorld", "Hello\nWorld");
-    test_string("Hello\\\"World", "Hello\"World");
-    test_string("Hello\\\\World", "Hello\\World");
-    test_string("Hello\\/World", "Hello/World");
-    test_string("Hello\\bWorld", "Hello\bWorld");
-    test_string("Hello\\fWorld", "Hello\fWorld");
-    test_string("Hello\\rWorld", "Hello\rWorld");
-    test_string("Hello\\tWorld", "Hello\tWorld");
+    test_string("", "\"\"");
+    test_string("Hello", "\"Hello\"");
+    test_string("Hello\nWorld", "\"Hello\\nWorld\"");
+    test_string("Hello\"World", "\"Hello\\\"World\"");
+    test_string("Hello\\World", "\"Hello\\\\World\"");
+    test_string("Hello/World", "\"Hello\\/World\"");
+    test_string("Hello\bWorld", "\"Hello\\bWorld\"");
+    test_string("Hello\fWorld", "\"Hello\\fWorld\"");
+    test_string("Hello\rWorld", "\"Hello\\rWorld\"");
+    test_string("Hello\tWorld", "\"Hello\\tWorld\"");
     test_error(ParseError::InvalidStringEscape, "\"\\a\"");
     test_error(ParseError::InvalidStringChar, "\"\x01\"");
     test_error(ParseError::MissQuotationMark, "\"abc");
@@ -146,6 +158,7 @@ static void test_parse()
     test_parse_root_not_singular();
     test_parse_invalid_value();
     test_parse_number();
+    test_parse_string();
 }
 
 int main()

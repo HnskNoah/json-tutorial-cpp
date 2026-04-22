@@ -121,6 +121,8 @@ ParseError Value::parseValue(Context& c, Value& v)
         return parseLiteral(c, v, "false", Type::False);
     case '\0':
         return ParseError::ExpectValue;
+    case '"':
+        return parseString(c, v);
     default:
         return parseNumber(c, v);
     }
