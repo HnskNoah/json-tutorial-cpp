@@ -225,7 +225,7 @@ ParseError Value::parseString(Context& c, Value& v)
                         return ParseError::InvalidUnicodeSurrogate;
                     }
                     c.json.remove_prefix(1); // skip 'u'
-                    unsigned u2;
+                    unsigned int u2;
                     if (parseHex4(c.json, u2) != ParseError::OK)
                     {
                         c.stack.resize(head);
@@ -238,7 +238,7 @@ ParseError Value::parseString(Context& c, Value& v)
                     }
                     u = (((u - 0xD800) << 10) | (u2 - 0xDC00)) + 0x10000;
                 }
-                encodeUtf8(c, u);
+                c.encodeUtf8(u);
                 break;
             }
             default:
