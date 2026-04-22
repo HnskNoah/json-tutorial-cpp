@@ -41,13 +41,13 @@ UTF-8 成为互联网上最流行的格式，因为：
 
 在 BMP 中，保留了 2048 个代理码点。如果第一个码点是 U+D800 至 U+DBFF，它是高代理项（high surrogate），之后应该伴随一个 U+DC00 至 U+DFFF 的低代理项（low surrogate）。然后用公式计算真实码点：
 
-~~~
+~~~c
 codepoint = 0x10000 + (H − 0xD800) × 0x400 + (L − 0xDC00)
 ~~~
 
 例如，高音谱号 `𝄞` → U+1D11E 不是 BMP 内的字符。在 JSON 中写成 `\uD834\uDD1E`：
 
-~~~
+~~~c
 H = 0xD834, L = 0xDD1E
 codepoint = 0x10000 + (0xD834 - 0xD800) × 0x400 + (0xDD1E - 0xDC00)
           = 0x10000 + 0x34 × 0x400 + 0x11E
@@ -155,7 +155,7 @@ static ParseError parseHex4(std::string_view& json, unsigned& u)
 ~~~cpp
 case 'u':
 {
-    unsigned u;
+    unsigned int u;
     if (parseHex4(c.json, u) != ParseError::OK)
     {
         c.stack.resize(head);

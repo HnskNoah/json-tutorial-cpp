@@ -202,6 +202,45 @@ ParseError Value::parseString(Context& c, Value& v)
                 c.json.remove_prefix(1);
                 break;
             // case 'u': 留待第四单元处理
+            case 'u':
+            {
+                unsigned int u;
+                if (parseHex4(c.json, u) != ParseError::OK)
+                {
+                    c.stack.resize(head);
+                    return ParseError::InvalidUnicodeHex;
+                }
+                if (u >= 0xD800 && u <= 0xDBFF)
+                {
+                    // surrogate pair
+                    if (c.json.size() < 2 || c.json.front() != '\\')
+                    {
+                        c.stack.resize(head);
+                        return ParseError::InvalidUnicodeSurrogate;
+                    }
+                    c.json.remove_prefix(1); // skip '\'
+                    if (c.json.empty() || c.json.front() != 'u')
+                    {
+                        c.stack.resize(head);
+                        return ParseError::InvalidUnicodeSurrogate;
+                    }
+                    c.json.remove_prefix(1); // skip 'u'
+                    unsigned u2;
+                    if (parseHex4(c.json, u2) != ParseError::OK)
+                    {
+                        c.stack.resize(head);
+                        return ParseError::InvalidUnicodeHex;
+                    }
+                    if (u2 < 0xDC00 || u2 > 0xDFFF)
+                    {
+                        c.stack.resize(head);
+                        return ParseError::InvalidUnicodeSurrogate;
+                    }
+                    u = (((u - 0xD800) << 10) | (u2 - 0xDC00)) + 0x10000;
+                }
+                encodeUtf8(c, u);
+                break;
+            }
             default:
                 c.stack.resize(head);
                 return ParseError::InvalidStringEscape;
@@ -222,5 +261,26 @@ ParseError Value::parseString(Context& c, Value& v)
     }
     c.stack.resize(head);
     return ParseError::MissQuotationMark;
+}
+ParseError Value::parseHex4(std::string_view& json, unsigned& u)
+{
+    u = 0;
+    for (int i = 0; i < 4; i++)
+    {
+        if (json.empty())
+            return ParseError::InvalidUnicodeHex;
+        char ch = json.front();
+        json.remove_prefix(1);
+        u <<= 4;
+        if (ch >= '0' && ch <= '9')
+            u |= ch - '0';
+        else if (ch >= 'A' && ch <= 'F')
+            u |= ch - ('A' - 10);
+        else if (ch >= 'a' && ch <= 'f')
+            u |= ch - ('a' - 10);
+        else
+            return ParseError::InvalidUnicodeHex;
+    }
+    return ParseError::OK;
 }
 } // namespace lept

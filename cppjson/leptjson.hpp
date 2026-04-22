@@ -30,6 +30,8 @@ enum class ParseError
     MissQuotationMark,
     InvalidStringEscape,
     InvalidStringChar,
+    InvalidUnicodeHex,
+    InvalidUnicodeSurrogate,
 };
 
 class Value
@@ -104,6 +106,30 @@ private:
             stack.resize(stack.size() - len);
             return result;
         }
+
+        void encodeUtf8(unsigned codepoint)
+        {
+            if (codepoint <= 0x7F)
+                pushChar(static_cast<char>(codepoint));
+            else if (codepoint <= 0x7FF)
+            {
+                pushChar(static_cast<char>(0xC0 | ((codepoint >> 6) & 0x1F)));
+                pushChar(static_cast<char>(0x80 | (codepoint & 0x3F)));
+            }
+            else if (codepoint <= 0xFFFF)
+            {
+                pushChar(static_cast<char>(0xE0 | ((codepoint >> 12) & 0x0F)));
+                pushChar(static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F)));
+                pushChar(static_cast<char>(0x80 | (codepoint & 0x3F)));
+            }
+            else
+            {
+                pushChar(static_cast<char>(0xF0 | ((codepoint >> 18) & 0x07)));
+                pushChar(static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F)));
+                pushChar(static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F)));
+                pushChar(static_cast<char>(0x80 | (codepoint & 0x3F)));
+            }
+        }
     };
 
     static void skipWhitespace(Context& c);
@@ -112,6 +138,7 @@ private:
     static ParseError parseValue(Context& c, Value& v);
     static ParseError parseNumber(Context& c, Value& v);
     static ParseError parseString(Context& c, Value& v);
+    static ParseError parseHex4(std::string_view& json, unsigned& u);
 };
 
 } // namespace lept
