@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <cstddef>
+#include <map>
 #include <string_view>
 #include <string>
 #include <vector>
@@ -33,6 +34,9 @@ enum class ParseError
     InvalidUnicodeHex,
     InvalidUnicodeSurrogate,
     MissCommaOrSquareBracket,
+    MissKey,
+    MissColon,
+    MissCommaOrCurlyBracket
 };
 
 class Value
@@ -95,11 +99,30 @@ public:
         return array_[index];
     }
 
+    size_t objectSize() const
+    {
+        assert(type_ == Type::Object);
+        return object_.size();
+    }
+
+    const Value& operator[](const std::string& key) const
+    {
+        assert(type_ == Type::Object && object_.count(key));
+        return object_.at(key);
+    }
+
+    Value& operator[](const std::string& key)
+    {
+        assert(type_ == Type::Object && object_.count(key));
+        return object_[key];
+    }
+
 private:
     Type type_;
     double number_;
     std::string str_;
     std::vector<Value> array_;
+    std::map<std::string, Value> object_;
 
     struct Context
     {
@@ -160,6 +183,8 @@ private:
     static ParseError parseString(Context& c, Value& v);
     static ParseError parseHex4(std::string_view& json, unsigned& u);
     static ParseError parseArray(Context& c, Value& v);
+    static ParseError parseObject(Context& c, Value& v);
+    static ParseError parseStringRaw(Context& c, std::string& s);
 };
 
 } // namespace lept

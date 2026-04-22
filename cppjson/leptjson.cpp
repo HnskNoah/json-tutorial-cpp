@@ -128,6 +128,8 @@ ParseError Value::parseValue(Context& c, Value& v)
         return parseString(c, v);
     case '[':
         return parseArray(c, v);
+    case '{':
+        return parseObject(c, v);
     default:
         return parseNumber(c, v);
     }
@@ -150,7 +152,7 @@ ParseError Value::parse(std::string_view json)
     assert(c.stack.empty());
     return ret;
 }
-ParseError Value::parseString(Context& c, Value& v)
+ParseError Value::parseStringRaw(Context& c, std::string& out)
 {
     assert(!c.json.empty() && c.json.front() == '"');
     c.json.remove_prefix(1);
@@ -162,8 +164,7 @@ ParseError Value::parseString(Context& c, Value& v)
         switch (ch)
         {
         case '"':
-            v.str_ = c.popString(c.stack.size() - head);
-            v.type_ = Type::String;
+            out = c.popString(c.stack.size() - head);
             return ParseError::OK;
 
         case '\\':
@@ -266,6 +267,78 @@ ParseError Value::parseString(Context& c, Value& v)
     }
     c.stack.resize(head);
     return ParseError::MissQuotationMark;
+}
+
+ParseError Value::parseString(Context& c, Value& v)
+{
+    std::string s;
+    ParseError ret = parseStringRaw(c, s);
+    if (ret != ParseError::OK)
+        return ret;
+    v.str_ = std::move(s);
+    v.type_ = Type::String;
+    return ParseError::OK;
+}
+
+ParseError Value::parseObject(Context& c, Value& v)
+{
+    assert(!c.json.empty() && c.json.front() == '{');
+    c.json.remove_prefix(1);
+    skipWhitespace(c);
+
+    if (!c.json.empty() && c.json.front() == '}')
+    {
+        c.json.remove_prefix(1);
+        v.type_ = Type::Object;
+        v.object_.clear();
+        return ParseError::OK;
+    }
+
+    v.type_ = Type::Object;
+    v.object_.clear();
+
+    for (;;)
+    {
+        // 1. parse key
+        if (c.json.empty() || c.json.front() != '"')
+            return ParseError::MissKey;
+
+        std::string key;
+        ParseError ret = parseStringRaw(c, key);
+        if (ret != ParseError::OK)
+            return ret;
+
+        // 2. parse ws colon ws
+        skipWhitespace(c);
+        if (c.json.empty() || c.json.front() != ':')
+            return ParseError::MissColon;
+        c.json.remove_prefix(1);
+        skipWhitespace(c);
+
+        // 3. parse value
+        Value val;
+        ret = parseValue(c, val);
+        if (ret != ParseError::OK)
+            return ret;
+
+        v.object_[std::move(key)] = std::move(val);
+
+        skipWhitespace(c);
+
+        // 4. comma or }
+        if (!c.json.empty() && c.json.front() == ',')
+        {
+            c.json.remove_prefix(1);
+            skipWhitespace(c);
+        }
+        else if (!c.json.empty() && c.json.front() == '}')
+        {
+            c.json.remove_prefix(1);
+            return ParseError::OK;
+        }
+        else
+            return ParseError::MissCommaOrCurlyBracket;
+    }
 }
 
 ParseError Value::parseArray(Context& c, Value& v)
