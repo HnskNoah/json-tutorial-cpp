@@ -32,6 +32,7 @@ enum class ParseError
     InvalidStringChar,
     InvalidUnicodeHex,
     InvalidUnicodeSurrogate,
+    MissCommaOrSquareBracket,
 };
 
 class Value
@@ -76,10 +77,29 @@ public:
     bool is_array() const { return type_ == Type::Array; }
     bool is_object() const { return type_ == Type::Object; }
 
+    size_t arraySize() const
+    {
+        assert(type_ == Type::Array);
+        return array_.size();
+    }
+
+    const Value& operator[](size_t index) const
+    {
+        assert(type_ == Type::Array && index < array_.size());
+        return array_[index];
+    }
+
+    Value& operator[](size_t index)
+    {
+        assert(type_ == Type::Array && index < array_.size());
+        return array_[index];
+    }
+
 private:
     Type type_;
     double number_;
     std::string str_;
+    std::vector<Value> array_;
 
     struct Context
     {
@@ -139,6 +159,7 @@ private:
     static ParseError parseNumber(Context& c, Value& v);
     static ParseError parseString(Context& c, Value& v);
     static ParseError parseHex4(std::string_view& json, unsigned& u);
+    static ParseError parseArray(Context& c, Value& v);
 };
 
 } // namespace lept

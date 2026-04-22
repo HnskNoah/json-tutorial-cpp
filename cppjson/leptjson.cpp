@@ -24,7 +24,10 @@ void Value::free()
         str_.clear();
         str_.shrink_to_fit();
         break;
-    // 后续会加入数组、对象的释放
+    case Type::Array:
+        array_.clear();
+        array_.shrink_to_fit();
+        break;
     default:
         break;
     }
@@ -123,6 +126,8 @@ ParseError Value::parseValue(Context& c, Value& v)
         return ParseError::ExpectValue;
     case '"':
         return parseString(c, v);
+    case '[':
+        return parseArray(c, v);
     default:
         return parseNumber(c, v);
     }
@@ -261,6 +266,87 @@ ParseError Value::parseString(Context& c, Value& v)
     }
     c.stack.resize(head);
     return ParseError::MissQuotationMark;
+}
+
+ParseError Value::parseArray(Context& c, Value& v)
+{
+    assert(!c.json.empty() && c.json.front() == '[');
+    c.json.remove_prefix(1); // skip '['
+    skipWhitespace(c);
+
+    if (!c.json.empty() && c.json.front() == ']')
+    {
+        c.json.remove_prefix(1);
+        v.type_ = Type::Array;
+        v.array_.clear();
+        return ParseError::OK;
+    }
+
+    size_t head = c.stack.size();
+    size_t size = 0;
+    v.type_ = Type::Array;
+    v.array_.clear();
+
+    for (;;)
+    {
+        // 解析一个值到临时变量
+        Value e;
+        ParseError ret = parseValue(c, e);
+        if (ret != ParseError::OK)
+        {
+            // 释放栈上的临时值
+            for (size_t i = 0; i < size; i++)
+            {
+                auto* pv =
+                    reinterpret_cast<Value*>(c.stack.data() + c.stack.size() - sizeof(Value));
+                pv->~Value();
+                c.stack.resize(c.stack.size() - sizeof(Value));
+            }
+            return ret;
+        }
+
+        // 把临时值压栈
+        size_t oldSize = c.stack.size();
+        c.stack.resize(oldSize + sizeof(Value));
+        new (c.stack.data() + oldSize) Value(std::move(e));
+        size++;
+
+        skipWhitespace(c);
+
+        if (!c.json.empty() && c.json.front() == ',')
+        {
+            c.json.remove_prefix(1);
+            skipWhitespace(c);
+        }
+        else if (!c.json.empty() && c.json.front() == ']')
+        {
+            c.json.remove_prefix(1);
+            v.type_ = Type::Array;
+            v.array_.resize(size);
+            // 从栈中弹出元素
+            for (size_t i = size; i > 0; i--)
+            {
+                auto* pv =
+                    reinterpret_cast<Value*>(c.stack.data() + c.stack.size() - sizeof(Value));
+                v.array_[i - 1] = std::move(*pv);
+                pv->~Value();
+                c.stack.resize(c.stack.size() - sizeof(Value));
+            }
+            return ParseError::OK;
+        }
+        else
+        {
+            // 释放栈上的临时值
+            for (size_t i = 0; i < size; i++)
+            {
+                auto* pv =
+                    reinterpret_cast<Value*>(c.stack.data() + c.stack.size() - sizeof(Value));
+                pv->~Value();
+                c.stack.resize(c.stack.size() - sizeof(Value));
+            }
+            return ParseError::MissCommaOrSquareBracket;
+        }
+    }
 }
 ParseError Value::parseHex4(std::string_view& json, unsigned& u)
 {

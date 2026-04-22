@@ -92,6 +92,42 @@ static void test_parse_invalid_value()
     test_error(ParseError::InvalidValue, "nan");
 }
 
+static void test_parse_array()
+{
+    Value v;
+
+    v = Value();
+    runner.expect_eq(ParseError::OK, v.parse("[ ]"));
+    runner.expect_eq(Type::Array, v.type());
+    runner.expect_eq(0, static_cast<int>(v.arraySize()));
+
+    v = Value();
+    runner.expect_eq(ParseError::OK, v.parse("[ null , false , true , 123 , \"abc\" ]"));
+    runner.expect_eq(Type::Array, v.type());
+    runner.expect_eq(5, static_cast<int>(v.arraySize()));
+    runner.expect_eq(Type::Null, v[0].type());
+    runner.expect_eq(Type::False, v[1].type());
+    runner.expect_eq(Type::True, v[2].type());
+    runner.expect_eq(Type::Number, v[3].type());
+    runner.expect_eq(Type::String, v[4].type());
+    runner.expect_eq(123.0, v[3].number());
+    runner.expect_eq("abc", v[4].string());
+
+    v = Value();
+    runner.expect_eq(ParseError::OK, v.parse("[ [ ] , [ 0 ] , [ 0 , 1 ] , [ 0 , 1 , 2 ] ]"));
+    runner.expect_eq(Type::Array, v.type());
+    runner.expect_eq(4, static_cast<int>(v.arraySize()));
+    for (size_t i = 0; i < 4; i++)
+    {
+        runner.expect_eq(Type::Array, v[i].type());
+        runner.expect_eq(static_cast<int>(i), static_cast<int>(v[i].arraySize()));
+        for (size_t j = 0; j < i; j++)
+        {
+            runner.expect_eq(Type::Number, v[i][j].type());
+            runner.expect_eq(static_cast<double>(j), v[i][j].number());
+        }
+    }
+}
 static void test_parse_number()
 {
     test_number(0.0, "0");
@@ -159,6 +195,7 @@ static void test_parse()
     test_parse_invalid_value();
     test_parse_number();
     test_parse_string();
+    test_parse_array();
 }
 
 int main()
