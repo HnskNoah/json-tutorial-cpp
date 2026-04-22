@@ -16,6 +16,53 @@ static bool isDigit1to9(char ch)
     return ch >= '1' && ch <= '9';
 }
 
+static void stringifyString(std::string& out, const std::string& s)
+{
+    out += '"';
+    for (unsigned char ch : s)
+    {
+        switch (ch)
+        {
+        case '"':
+            out += "\\\"";
+            break;
+        case '\\':
+            out += "\\\\";
+            break;
+        case '\b':
+            out += "\\b";
+            break;
+        case '\f':
+            out += "\\f";
+            break;
+        case '\n':
+            out += "\\n";
+            break;
+        case '\r':
+            out += "\\r";
+            break;
+        case '\t':
+            out += "\\t";
+            break;
+
+        case '/':
+            out += "\\/";
+            break;
+
+        default:
+            if (ch <= 0x20)
+            {
+                char buffer[7];
+                std::snprintf(buffer, sizeof(buffer), "\\u%04X", ch);
+                out += buffer;
+            }
+            else
+                out += static_cast<char>(ch);
+        }
+    }
+    out += '"';
+}
+
 void Value::free()
 {
     switch (type_)
@@ -44,6 +91,64 @@ void Value::skipWhitespace(Context& c)
         else
             break;
     }
+}
+
+void Value::stringifyValue(std::string& out) const
+{
+    switch (type_)
+    {
+    case Type::Null:
+        out += "null";
+        break;
+    case Type::False:
+        out += "false";
+        break;
+    case Type::True:
+        out += "true";
+        break;
+    case Type::Number:
+    {
+        char buffer[32];
+        std::snprintf(buffer, sizeof(buffer), "%.17g", number_);
+        out += buffer;
+        break;
+    }
+    case Type::String:
+        stringifyString(out, str_);
+        break;
+
+    case Type::Array:
+        out += '[';
+        for (size_t i = 0; i < array_.size(); i++)
+        {
+            if (i > 0)
+                out += ',';
+            array_[i].stringifyValue(out);
+        }
+        out += ']';
+        break;
+    case Type::Object:
+        out += '{';
+        bool first = true;
+        for (auto& [k, v] : object_)
+        {
+            if (!first)
+                out += ',';
+            first = false;
+            stringifyString(out, k);
+            out += ':';
+            v.stringifyValue(out);
+        }
+        out += '}';
+        break;
+    }
+}
+
+std::string Value::stringify() const
+{
+    std::string out;
+    stringifyValue(out);
+    return out;
 }
 
 ParseError Value::parseLiteral(Context& c, Value& v, std::string_view literal, Type type)
@@ -109,8 +214,6 @@ ParseError Value::parseNumber(Context& c, Value& v)
     return ParseError::OK;
 }
 
-/* value = null / false / true */
-/* 练习：下面代码没处理 false / true，将会是练习之一 */
 ParseError Value::parseValue(Context& c, Value& v)
 {
     char ch = c.json.empty() ? '\0' : c.json.front();
@@ -135,8 +238,6 @@ ParseError Value::parseValue(Context& c, Value& v)
     }
 }
 
-/* 提示：这里应该是 JSON-text = ws value ws */
-/* 以下实现没处理最后的 ws 和 LEPT_PARSE_ROOT_NOT_SINGULAR */
 ParseError Value::parse(std::string_view json)
 {
     Context c(json);
@@ -210,6 +311,7 @@ ParseError Value::parseStringRaw(Context& c, std::string& out)
             // case 'u': 留待第四单元处理
             case 'u':
             {
+                c.json.remove_prefix(1); // 跳过 'u'
                 unsigned int u;
                 if (parseHex4(c.json, u) != ParseError::OK)
                 {
@@ -410,4 +512,5 @@ ParseError Value::parseHex4(std::string_view& json, unsigned& u)
     }
     return ParseError::OK;
 }
+
 } // namespace lept

@@ -117,6 +117,9 @@ public:
         return object_[key];
     }
 
+    std::string stringify() const;
+    void stringifyValue(std::string& out) const;
+
 private:
     Type type_;
     double number_;

@@ -49,6 +49,23 @@ static void test_error(ParseError error, std::string_view json)
     runner.expect_eq(error, v.parse(json));
     runner.expect_eq(Type::Null, v.type());
 }
+static void test_roundtrip(std::string_view json)
+{
+    Value v;
+    runner.expect_eq(ParseError::OK, v.parse(json));
+    runner.expect_eq(json, v.stringify());
+}
+
+static void test_stringify()
+{
+    test_roundtrip("null");
+    test_roundtrip("false");
+    test_roundtrip("true");
+    test_roundtrip("\"Hello\\nWorld\"");
+    test_roundtrip("\"\\\"\\\\\\/\\b\\f\\n\\r\\t\"");
+    test_roundtrip("\"Hello\\u0020World\"");
+    // ...
+}
 
 // 定义通用的测试逻辑
 auto test_parse_lambda = [](ParseError error, Type type, std::string_view json)
@@ -196,6 +213,7 @@ static void test_parse()
     test_parse_number();
     test_parse_string();
     test_parse_array();
+    test_stringify();
 }
 
 int main()
