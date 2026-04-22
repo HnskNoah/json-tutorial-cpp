@@ -282,8 +282,6 @@ ParseError Value::parseArray(Context& c, Value& v)
         return ParseError::OK;
     }
 
-    size_t head = c.stack.size();
-    size_t size = 0;
     v.type_ = Type::Array;
     v.array_.clear();
 
@@ -295,22 +293,11 @@ ParseError Value::parseArray(Context& c, Value& v)
         if (ret != ParseError::OK)
         {
             // 释放栈上的临时值
-            for (size_t i = 0; i < size; i++)
-            {
-                auto* pv =
-                    reinterpret_cast<Value*>(c.stack.data() + c.stack.size() - sizeof(Value));
-                pv->~Value();
-                c.stack.resize(c.stack.size() - sizeof(Value));
-            }
+
             return ret;
         }
 
-        // 把临时值压栈
-        size_t oldSize = c.stack.size();
-        c.stack.resize(oldSize + sizeof(Value));
-        new (c.stack.data() + oldSize) Value(std::move(e));
-        size++;
-
+        v.array_.push_back(std::move(e));
         skipWhitespace(c);
 
         if (!c.json.empty() && c.json.front() == ',')
@@ -321,29 +308,10 @@ ParseError Value::parseArray(Context& c, Value& v)
         else if (!c.json.empty() && c.json.front() == ']')
         {
             c.json.remove_prefix(1);
-            v.type_ = Type::Array;
-            v.array_.resize(size);
-            // 从栈中弹出元素
-            for (size_t i = size; i > 0; i--)
-            {
-                auto* pv =
-                    reinterpret_cast<Value*>(c.stack.data() + c.stack.size() - sizeof(Value));
-                v.array_[i - 1] = std::move(*pv);
-                pv->~Value();
-                c.stack.resize(c.stack.size() - sizeof(Value));
-            }
             return ParseError::OK;
         }
         else
         {
-            // 释放栈上的临时值
-            for (size_t i = 0; i < size; i++)
-            {
-                auto* pv =
-                    reinterpret_cast<Value*>(c.stack.data() + c.stack.size() - sizeof(Value));
-                pv->~Value();
-                c.stack.resize(c.stack.size() - sizeof(Value));
-            }
             return ParseError::MissCommaOrSquareBracket;
         }
     }
